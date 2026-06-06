@@ -1,0 +1,22 @@
+{
+  "pool_id": "ETH-USDC-001",
+  "token_x": {
+    "name": "ETH",
+    "full_name": "Ethereum",
+    "decimals": 18,
+    "icon": "⟠"
+  },
+  "token_y": {
+    "name": "USDC",
+    "full_name": "USD Coin",
+    "decimals": 6,
+    "icon": "💲"
+  },
+  "initial_liquidity": {
+    "reserve_x": 100.0,
+    "reserve_y": 200000.0
+  },
+  "fee_rate": 0.003,
+  "description": "ETH/USDC 交易对流动性池，初始价格 1 ETH = 2000 USDC",
+  "created_at": "2026-03-20 10:00:00"
+}

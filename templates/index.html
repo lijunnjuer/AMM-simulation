@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMM 交易所仿真系统</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/echarts.min.js"></script>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="top-bar">
+        <div class="logo">
+            <img src="/static/img/logo.svg" alt="AMM Simulator" width="36" height="36"
+                 style="vertical-align: middle;">
+            <span class="logo-text">AMM <span class="logo-accent">Simulator</span></span>
+        </div>
+        <div class="top-status">
+            <div class="status-item">
+                <span class="status-label">交易对</span>
+                <span class="status-value" id="topPair">--</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">当前价格</span>
+                <span class="status-value price" id="topPrice">--</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">24h 交易量</span>
+                <span class="status-value" id="topVolume">--</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">总流动性</span>
+                <span class="status-value" id="topLiquidity">--</span>
+            </div>
+            <div class="status-dot online" id="sysStatus" title="系统状态"></div>
+            <div class="user-info">
+                <span id="loginUsername">--</span>
+                <button id="btnLogout" class="btn-logout" title="退出登录">退出</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 侧边栏 -->
+    <nav class="sidebar">
+        <ul class="nav-list">
+            <li class="nav-item active" data-page="dashboard">
+                <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.4"/></svg>
+                <span>仪表盘</span>
+            </li>
+            <li class="nav-item" data-page="swap">
+                <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 6 L10 6 L10 4 L16 9 L10 14 L10 12 L4 12 Z" fill="currentColor"/><path d="M16 14 L10 14 L10 16 L4 11 L10 6 L10 8 L16 8 Z" fill="currentColor" opacity="0.5"/></svg>
+                <span>代币交换</span>
+            </li>
+            <li class="nav-item" data-page="liquidity">
+                <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" fill="currentColor"/><path d="M10 4 L10 1.5 M10 16 L10 18.5 M4 10 L1.5 10 M16 10 L18.5 10" stroke="currentColor" stroke-width="1.5" opacity="0.5"/></svg>
+                <span>流动性池</span>
+            </li>
+            <li class="nav-item" data-page="analysis">
+                <svg width="20" height="20" viewBox="0 0 20 20"><polyline points="2,16 6,10 10,12 14,4 18,8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>盈亏分析</span>
+            </li>
+            <li class="nav-item" data-page="simulation">
+                <svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="12" y="3" width="5" height="5" rx="1" fill="currentColor" opacity="0.6"/><rect x="3" y="12" width="5" height="5" rx="1" fill="currentColor" opacity="0.6"/><rect x="12" y="12" width="5" height="5" rx="1" fill="currentColor" opacity="0.4"/><polyline points="5.5,5.5 14.5,5.5 14.5,14.5 5.5,14.5" fill="none" stroke="#00d4aa" stroke-width="1" stroke-dasharray="2,2"/></svg>
+                <span>仿真控制</span>
+            </li>
+            <li class="nav-item" data-page="data">
+                <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="6" y1="6" x2="14" y2="6" stroke="currentColor" stroke-width="1"/><line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" stroke-width="1" opacity="0.6"/><line x1="6" y1="14" x2="10" y2="14" stroke="currentColor" stroke-width="1" opacity="0.4"/></svg>
+                <span>数据日志</span>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <button class="btn-reset" id="btnReset" title="重置系统">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 8a6 6 0 0 1 10.47-4M14 8a6 6 0 0 1-10.47 4M2 2v4h4M14 14v-4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                重置系统
+            </button>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <!-- ========== 仪表盘页面 ========== -->
+        <section class="page active" id="page-dashboard">
+            <h2 class="page-title">系统仪表盘</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-label">当前价格</span>
+                        <span class="stat-change positive" id="dashPriceChange">--</span>
+                    </div>
+                    <div class="stat-value-lg" id="dashPrice">--</div>
+                    <div class="stat-sub">1 ETH = <span id="dashPriceUSDC">--</span> USDC</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-label">总锁定价值 (TVL)</span>
+                    </div>
+                    <div class="stat-value-lg" id="dashTVL">--</div>
+                    <div class="stat-sub">ETH + USDC</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-label">24h 交易量</span>
+                    </div>
+                    <div class="stat-value-lg" id="dashVolume">--</div>
+                    <div class="stat-sub"><span id="dashTxCount">0</span> 笔交易</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <span class="stat-label">累计手续费</span>
+                    </div>
+                    <div class="stat-value-lg" id="dashFees">--</div>
+                    <div class="stat-sub">费率 0.3%</div>
+                </div>
+            </div>
+            <div class="charts-row">
+                <div class="chart-card">
+                    <div class="chart-card-title">价格走势图</div>
+                    <div class="chart-container" id="chartPrice"></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-title">流动性池深度</div>
+                    <div class="chart-container" id="chartDepth"></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-card-title">最近交易记录</div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>交易ID</th>
+                                <th>用户</th>
+                                <th>类型</th>
+                                <th>输入</th>
+                                <th>输出</th>
+                                <th>手续费</th>
+                                <th>滑点</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentTxTable">
+                            <tr><td colspan="8" class="empty-msg">暂无交易记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 代币交换页面 ========== -->
+        <section class="page" id="page-swap">
+            <h2 class="page-title">代币交换</h2>
+            <div class="swap-container">
+                <div class="swap-card">
+                    <div class="swap-header">
+                        <span>Swap</span>
+                        <span class="swap-settings" id="swapFeeDisplay">Fee: 0.30%</span>
+                    </div>
+                    <div class="swap-input-group">
+                        <label>支付</label>
+                        <div class="swap-input-row">
+                            <input type="number" id="swapInputAmount" placeholder="0.0" step="any" min="0">
+                            <select id="swapInputToken" class="token-select">
+                                <option value="ETH">ETH</option>
+                                <option value="USDC">USDC</option>
+                            </select>
+                        </div>
+                        <div class="swap-balance" id="swapInputBalance">余额: --</div>
+                    </div>
+                    <div class="swap-arrow" id="swapArrow">
+                        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5 L12 19 M12 19 L6 13 M12 19 L18 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </div>
+                    <div class="swap-input-group">
+                        <label>获得 (预估)</label>
+                        <div class="swap-input-row">
+                            <input type="text" id="swapOutputAmount" placeholder="0.0" readonly>
+                            <select id="swapOutputToken" class="token-select">
+                                <option value="USDC">USDC</option>
+                                <option value="ETH">ETH</option>
+                            </select>
+                        </div>
+                        <div class="swap-balance" id="swapOutputBalance">余额: --</div>
+                    </div>
+                    <div class="swap-info" id="swapInfoBox" style="display:none;">
+                        <div class="swap-info-row"><span>汇率</span><span id="swapRate">--</span></div>
+                        <div class="swap-info-row"><span>价格影响/滑点</span><span id="swapSlippage">--</span></div>
+                        <div class="swap-info-row"><span>手续费</span><span id="swapFee">--</span></div>
+                        <div class="swap-info-row"><span>最低获得</span><span id="swapMinOut">--</span></div>
+                    </div>
+                    <div class="swap-user-select">
+                        <label>执行用户</label>
+                        <select id="swapUser" class="token-select full-width"></select>
+                    </div>
+                    <button class="btn-primary btn-swap" id="btnSwap">交换</button>
+                    <div class="swap-error" id="swapError" style="display:none;"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 流动性池页面 ========== -->
+        <section class="page" id="page-liquidity">
+            <h2 class="page-title">流动性池管理</h2>
+            <div class="liquidity-layout">
+                <div class="liquidity-card">
+                    <div class="liquidity-tabs">
+                        <button class="liq-tab active" data-tab="add">添加流动性</button>
+                        <button class="liq-tab" data-tab="remove">移除流动性</button>
+                    </div>
+                    <!-- 添加流动性 -->
+                    <div class="liq-panel active" id="panel-add">
+                        <div class="swap-input-group">
+                            <label>存入 <span id="liqTokenXLabel">ETH</span></label>
+                            <div class="swap-input-row">
+                                <input type="number" id="liqInputX" placeholder="0.0" step="any" min="0">
+                                <span class="token-tag" id="liqTokenXTag">ETH</span>
+                            </div>
+                        </div>
+                        <div class="liq-plus">+</div>
+                        <div class="swap-input-group">
+                            <label>存入 <span id="liqTokenYLabel">USDC</span></label>
+                            <div class="swap-input-row">
+                                <input type="number" id="liqInputY" placeholder="0.0" step="any" min="0">
+                                <span class="token-tag" id="liqTokenYTag">USDC</span>
+                            </div>
+                        </div>
+                        <div class="liq-info">
+                            <div class="swap-info-row"><span>池子比例</span><span id="liqRatio">--</span></div>
+                            <div class="swap-info-row"><span>预计获得 LP Token</span><span id="liqExpectedLP">--</span></div>
+                            <div class="swap-info-row"><span>池中总 LP Token</span><span id="liqTotalLP">--</span></div>
+                        </div>
+                        <div class="swap-user-select">
+                            <label>执行用户</label>
+                            <select id="liqAddUser" class="token-select full-width"></select>
+                        </div>
+                        <button class="btn-primary btn-full" id="btnAddLiquidity">添加流动性</button>
+                        <div class="swap-error" id="liqAddError" style="display:none;"></div>
+                    </div>
+                    <!-- 移除流动性 -->
+                    <div class="liq-panel" id="panel-remove">
+                        <div class="swap-input-group">
+                            <label>燃烧 LP Token</label>
+                            <div class="swap-input-row">
+                                <input type="number" id="liqRemoveLP" placeholder="0.0" step="any" min="0">
+                                <span class="token-tag">LP</span>
+                            </div>
+                        </div>
+                        <div class="liq-info">
+                            <div class="swap-info-row"><span>预计返还 <span id="liqRemoveTokenX">ETH</span></span><span id="liqReturnX">--</span></div>
+                            <div class="swap-info-row"><span>预计返还 <span id="liqRemoveTokenY">USDC</span></span><span id="liqReturnY">--</span></div>
+                            <div class="swap-info-row"><span>LP 持有份额</span><span id="liqShare">--</span></div>
+                        </div>
+                        <div class="swap-user-select">
+                            <label>执行用户</label>
+                            <select id="liqRemoveUser" class="token-select full-width"></select>
+                        </div>
+                        <button class="btn-danger btn-full" id="btnRemoveLiquidity">移除流动性</button>
+                        <div class="swap-error" id="liqRemoveError" style="display:none;"></div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-title">池子储备构成</div>
+                    <div class="chart-container" id="chartReserves"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 盈亏分析页面 ========== -->
+        <section class="page" id="page-analysis">
+            <h2 class="page-title">盈亏分析 & 无常损失</h2>
+            <div class="charts-row">
+                <div class="chart-card">
+                    <div class="chart-card-title">无常损失曲线</div>
+                    <div class="chart-container" id="chartIL"></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-card-title">LP 仓位分析</div>
+                    <div class="chart-container" id="chartPosition"></div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-card-title">LP 仓位详情</div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>用户</th>
+                                <th>初始存入 (ETH)</th>
+                                <th>初始存入 (USDC)</th>
+                                <th>初始价格</th>
+                                <th>当前价格</th>
+                                <th>无常损失</th>
+                                <th>HODL价值</th>
+                                <th>LP价值</th>
+                                <th>P&L vs HODL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionTable">
+                            <tr><td colspan="9" class="empty-msg">暂无 LP 仓位数据，请先执行仿真或手动添加流动性</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 仿真控制页面 ========== -->
+        <section class="page" id="page-simulation">
+            <h2 class="page-title">仿真控制中心</h2>
+            <div class="sim-layout">
+                <div class="sim-control-panel">
+                    <div class="sim-section">
+                        <h3>场景选择</h3>
+                        <select id="simScenario" class="token-select full-width"></select>
+                        <div class="sim-scenario-desc" id="simScenarioDesc"></div>
+                    </div>
+                    <div class="sim-section">
+                        <h3>执行控制</h3>
+                        <div class="sim-buttons">
+                            <button class="btn-primary" id="btnSimRun">运行完整仿真</button>
+                            <button class="btn-secondary" id="btnSimStep">单步执行</button>
+                            <button class="btn-secondary" id="btnSimReset">重置</button>
+                        </div>
+                        <div class="sim-progress">
+                            <div class="sim-progress-label">
+                                <span>进度</span>
+                                <span id="simProgressText">0 / 0</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="simProgressBar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sim-section">
+                        <h3>用户余额</h3>
+                        <div class="sim-balances" id="simBalances"></div>
+                    </div>
+                </div>
+                <div class="sim-charts">
+                    <div class="chart-card">
+                        <div class="chart-card-title">仿真价格变化</div>
+                        <div class="chart-container" id="chartSimPrice"></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title">仿真事件日志</div>
+                        <div class="sim-log" id="simLog">
+                            <div class="empty-msg">等待仿真开始...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 数据日志页面 ========== -->
+        <section class="page" id="page-data">
+            <h2 class="page-title">数据日志 & 统计</h2>
+            <div class="stats-grid">
+                <div class="stat-card small">
+                    <div class="stat-label">总交易笔数</div>
+                    <div class="stat-value-lg" id="dataTotalTx">0</div>
+                </div>
+                <div class="stat-card small">
+                    <div class="stat-label">总流动性事件</div>
+                    <div class="stat-value-lg" id="dataTotalLiq">0</div>
+                </div>
+                <div class="stat-card small">
+                    <div class="stat-label">总交易量</div>
+                    <div class="stat-value-lg" id="dataTotalVolume">0</div>
+                </div>
+                <div class="stat-card small">
+                    <div class="stat-label">平均滑点</div>
+                    <div class="stat-value-lg" id="dataAvgSlippage">0%</div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-card-title">全部交易记录</div>
+                <div class="table-container" style="max-height: 500px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>交易ID</th>
+                                <th>类型</th>
+                                <th>用户</th>
+                                <th>输入</th>
+                                <th>输出</th>
+                                <th>手续费</th>
+                                <th>滑点</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fullTxTable">
+                            <tr><td colspan="8" class="empty-msg">暂无交易记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

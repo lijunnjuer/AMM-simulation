@@ -1,0 +1,6 @@
+{
+    "demo_name": "AMM 仿真演示 — 大额冲击实验",
+    "description": "演示鲸鱼用户大额交易对 AMM 池子价格的影响",
+    "scenarios": [1],
+    "output": "demo_results.json"
+}

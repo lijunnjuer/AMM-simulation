@@ -1,0 +1,81 @@
+{
+  "users": [
+    {
+      "id": "user_001",
+      "name": "Alice",
+      "type": "trader",
+      "description": "普通交易用户",
+      "initial_balance": {
+        "ETH": 50.0,
+        "USDC": 500000.0
+      },
+      "behavior": {
+        "trade_frequency": "medium",
+        "avg_trade_size_eth": 2.0,
+        "risk_tolerance": "moderate"
+      }
+    },
+    {
+      "id": "user_002",
+      "name": "Bob",
+      "type": "lp_provider",
+      "description": "流动性提供者",
+      "initial_balance": {
+        "ETH": 200.0,
+        "USDC": 400000.0
+      },
+      "behavior": {
+        "lp_share_preference": 0.3,
+        "holding_period_days": 30,
+        "risk_tolerance": "low"
+      }
+    },
+    {
+      "id": "user_003",
+      "name": "Charlie",
+      "type": "arbitrageur",
+      "description": "套利交易机器人",
+      "initial_balance": {
+        "ETH": 100.0,
+        "USDC": 1000000.0
+      },
+      "behavior": {
+        "trade_frequency": "high",
+        "avg_trade_size_eth": 5.0,
+        "risk_tolerance": "high",
+        "min_profit_threshold": 0.005
+      }
+    },
+    {
+      "id": "user_004",
+      "name": "Diana",
+      "type": "researcher",
+      "description": "研究与教学用户",
+      "initial_balance": {
+        "ETH": 10.0,
+        "USDC": 50000.0
+      },
+      "behavior": {
+        "trade_frequency": "low",
+        "avg_trade_size_eth": 0.5,
+        "risk_tolerance": "low",
+        "focus": "impermanent_loss_analysis"
+      }
+    },
+    {
+      "id": "user_005",
+      "name": "Eve",
+      "type": "trader",
+      "description": "大额交易者",
+      "initial_balance": {
+        "ETH": 500.0,
+        "USDC": 2000000.0
+      },
+      "behavior": {
+        "trade_frequency": "low",
+        "avg_trade_size_eth": 20.0,
+        "risk_tolerance": "high"
+      }
+    }
+  ]
+}
