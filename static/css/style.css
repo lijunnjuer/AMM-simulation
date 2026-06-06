@@ -193,7 +193,7 @@ body {
 .swap-container { display: flex; justify-content: center; padding-top: 20px; }
 .swap-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); padding: 28px; width: 460px;
+    border-radius: var(--radius-lg); padding: 28px; width: 520px;
     box-shadow: var(--shadow-md);
 }
 .swap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; font-weight: 600; }
@@ -202,17 +202,18 @@ body {
 .swap-input-group { margin-bottom: 6px; }
 .swap-input-group label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; font-weight: 500; }
 .swap-input-row {
-    display: flex; align-items: center; background: var(--bg-input);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 3px; transition: all var(--transition);
+    display: flex; align-items: center; background: #ffffff;
+    border: 1.5px solid #d1d5db; border-radius: var(--radius);
+    padding: 4px; transition: all var(--transition);
+    cursor: text;
 }
 .swap-input-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
 .swap-input-row input, .swap-input-row select {
     background: transparent; border: none; outline: none;
-    color: var(--text); font-size: 15px; padding: 9px 12px;
+    color: var(--text); font-size: 16px; padding: 10px 12px;
     font-family: inherit;
 }
-.swap-input-row input { flex: 1; min-width: 0; font-weight: 500; width: 100%; }
+.swap-input-row input { flex: 1; min-width: 80px; font-weight: 500; }
 .swap-input-row input[readonly] { color: var(--text-secondary); }
 
 .token-select {
@@ -277,7 +278,7 @@ body {
 }
 
 /* ========== 流动性页面 ========== */
-.liquidity-layout { display: grid; grid-template-columns: 460px 1fr; gap: 22px; }
+.liquidity-layout { display: grid; grid-template-columns: 520px 1fr; gap: 22px; }
 .liquidity-card {
     background: var(--bg-card); border: 1px solid var(--border);
     border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow);
