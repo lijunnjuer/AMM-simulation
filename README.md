@@ -19,7 +19,7 @@ python run.py
 python main.py --config demo.json
 ```
 
-浏览器打开 `http://127.0.0.1:5000`，默认账号 `admin` / `admin123`。
+浏览器打开 `http://127.0.0.1:5000`，默认账号 `Alice` / `alice123`、`Bob` / `bob123`。
 
 ## 测试
 

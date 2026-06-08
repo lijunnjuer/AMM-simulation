@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import secrets
+import random
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -70,9 +71,26 @@ init_liq = pool_config.get('initial_liquidity', {})
 INIT_X = init_liq.get('reserve_x', 100)
 INIT_Y = init_liq.get('reserve_y', 200000)
 
+# 真实用户余额（Swap/流动性操作使用，独立于仿真余额）
+REAL_BALANCES = {}
+
+
+def _init_real_balances():
+    """从 users.json 初始化真实余额"""
+    global REAL_BALANCES
+    REAL_BALANCES = {}
+    for user in users_data.get('users', []):
+        REAL_BALANCES[user['id']] = {
+            'name': user['name'],
+            'type': user['type'],
+            'ETH': user['initial_balance'].get('ETH', 0),
+            'USDC': user['initial_balance'].get('USDC', 0),
+            'lp_tokens': 0.0,
+        }
+
 
 def _full_reset():
-    """集中重置所有模块到初始状态"""
+    """集中重置所有模块到初始状态（仿真用，不影响真实余额）"""
     pool.initialize(INIT_X, INIT_Y)
     simulation.reset()
     simulation.load_users(users_data)
@@ -85,6 +103,7 @@ def _full_reset():
 # 启动时初始化
 init_db()
 create_default_users()
+_init_real_balances()
 _full_reset()
 
 
@@ -106,19 +125,43 @@ def login_page():
 # ============================================================
 # 认证 API
 # ============================================================
+@app.route('/api/captcha')
+def api_captcha():
+    """生成 4 位数字验证码，存入 session"""
+    code = str(random.randint(1000, 9999))
+    session['captcha'] = code
+    return jsonify({'captcha': code})
+
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     from auth import verify_user
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '')
+    captcha = data.get('captcha', '').strip()
 
     if not username or not password:
         return jsonify({'success': False, 'error': '请输入用户名和密码'})
 
-    if verify_user(username, password):
-        session['username'] = username
-        return jsonify({'success': True, 'username': username})
+    # 验证码校验
+    if captcha != session.get('captcha', ''):
+        return jsonify({'success': False, 'error': '验证码错误'})
+
+    # 使用后立即清除，防止重复使用
+    session.pop('captcha', None)
+
+    user_info = verify_user(username, password)
+    if user_info:
+        session['username'] = user_info['username']
+        session['sim_user_id'] = user_info['sim_user_id']
+        sim_name = REAL_BALANCES.get(user_info['sim_user_id'], {}).get('name', user_info['sim_user_id'])
+        return jsonify({
+            'success': True,
+            'username': user_info['username'],
+            'sim_user_id': user_info['sim_user_id'],
+            'sim_user_name': sim_name,
+        })
 
     return jsonify({'success': False, 'error': '用户名或密码错误'})
 
@@ -132,7 +175,14 @@ def api_logout():
 @app.route('/api/session')
 def api_session():
     if 'username' in session:
-        return jsonify({'logged_in': True, 'username': session['username']})
+        sim_id = session.get('sim_user_id', '')
+        sim_name = REAL_BALANCES.get(sim_id, {}).get('name', sim_id)
+        return jsonify({
+            'logged_in': True,
+            'username': session['username'],
+            'sim_user_id': sim_id,
+            'sim_user_name': sim_name,
+        })
     return jsonify({'logged_in': False})
 
 
@@ -179,7 +229,7 @@ def api_swap_quote():
 def api_swap_execute():
     data = request.get_json()
     token_in = data.get('token_in', '')
-    user_id = data.get('user_id', 'anonymous')
+    user_id = session.get('sim_user_id', '')
     if token_in.upper() not in VALID_TOKENS:
         return jsonify({'success': False, 'error': f'无效代币: {token_in}'})
 
@@ -188,23 +238,22 @@ def api_swap_execute():
         if amount <= 0:
             return jsonify({'success': False, 'error': '交易数量必须大于零'})
 
-        # 检查用户余额
-        balances = simulation.user_balances
-        if user_id in balances:
-            if balances[user_id].get(token_in, 0) < amount:
+        # 检查真实余额
+        if user_id in REAL_BALANCES:
+            if REAL_BALANCES[user_id].get(token_in, 0) < amount:
                 return jsonify({
                     'success': False,
                     'error': f'余额不足：需要 {amount} {token_in}，'
-                             f'仅有 {balances[user_id].get(token_in, 0):.4f} {token_in}'
+                             f'仅有 {REAL_BALANCES[user_id].get(token_in, 0):.4f} {token_in}'
                 })
 
         result = swap_engine.execute_swap(user_id, token_in, amount)
 
-        # 更新余额
-        if user_id in balances:
-            balances[user_id][token_in] -= amount
-            balances[user_id][result['token_out']] = (
-                balances[user_id].get(result['token_out'], 0) + result['amount_out']
+        # 更新真实余额
+        if user_id in REAL_BALANCES:
+            REAL_BALANCES[user_id][token_in] -= amount
+            REAL_BALANCES[user_id][result['token_out']] = (
+                REAL_BALANCES[user_id].get(result['token_out'], 0) + result['amount_out']
             )
 
         return jsonify({'success': True, 'result': result})
@@ -221,7 +270,7 @@ def api_swap_execute():
 @login_required
 def api_liquidity_add():
     data = request.get_json()
-    user_id = data.get('user_id', 'anonymous')
+    user_id = session.get('sim_user_id', '')
 
     try:
         x_amount = float(data.get('x_amount', 0))
@@ -229,13 +278,12 @@ def api_liquidity_add():
         if x_amount <= 0 or y_amount <= 0:
             return jsonify({'success': False, 'error': '存入数量必须大于零'})
 
-        # 检查余额
-        balances = simulation.user_balances
-        if user_id in balances:
-            if balances[user_id].get(pool.token_x, 0) < x_amount:
+        # 检查真实余额
+        if user_id in REAL_BALANCES:
+            if REAL_BALANCES[user_id].get(pool.token_x, 0) < x_amount:
                 return jsonify({'success': False,
                                 'error': f'{pool.token_x} 余额不足'})
-            if balances[user_id].get(pool.token_y, 0) < y_amount:
+            if REAL_BALANCES[user_id].get(pool.token_y, 0) < y_amount:
                 return jsonify({'success': False,
                                 'error': f'{pool.token_y} 余额不足'})
 
@@ -248,11 +296,11 @@ def api_liquidity_add():
             initial_price=float(pool.get_price()),
         )
 
-        # 更新余额
-        if user_id in balances:
-            balances[user_id][pool.token_x] -= x_amount
-            balances[user_id][pool.token_y] -= y_amount
-            balances[user_id]['lp_tokens'] = balances[user_id].get('lp_tokens', 0) + lp_tokens
+        # 更新真实余额
+        if user_id in REAL_BALANCES:
+            REAL_BALANCES[user_id][pool.token_x] -= x_amount
+            REAL_BALANCES[user_id][pool.token_y] -= y_amount
+            REAL_BALANCES[user_id]['lp_tokens'] = REAL_BALANCES[user_id].get('lp_tokens', 0) + lp_tokens
 
         return jsonify({
             'success': True, 'lp_tokens': lp_tokens,
@@ -268,30 +316,29 @@ def api_liquidity_add():
 @login_required
 def api_liquidity_remove():
     data = request.get_json()
-    user_id = data.get('user_id', 'anonymous')
+    user_id = session.get('sim_user_id', '')
 
     try:
         lp_tokens = float(data.get('lp_tokens', 0))
         if lp_tokens <= 0:
             return jsonify({'success': False, 'error': 'LP Token 数量必须大于零'})
 
-        # 检查 LP Token 余额
-        balances = simulation.user_balances
-        if user_id in balances:
-            if balances[user_id].get('lp_tokens', 0) < lp_tokens:
+        # 检查真实 LP Token 余额
+        if user_id in REAL_BALANCES:
+            if REAL_BALANCES[user_id].get('lp_tokens', 0) < lp_tokens:
                 return jsonify({
                     'success': False,
                     'error': f'LP Token 余额不足：需要 {lp_tokens}，'
-                             f'仅有 {balances[user_id].get("lp_tokens", 0):.4f}'
+                             f'仅有 {REAL_BALANCES[user_id].get("lp_tokens", 0):.4f}'
                 })
 
         x_return, y_return = pool.remove_liquidity(lp_tokens)
 
-        # 更新余额
-        if user_id in balances:
-            balances[user_id][pool.token_x] = balances[user_id].get(pool.token_x, 0) + x_return
-            balances[user_id][pool.token_y] = balances[user_id].get(pool.token_y, 0) + y_return
-            balances[user_id]['lp_tokens'] = balances[user_id].get('lp_tokens', 0) - lp_tokens
+        # 更新真实余额
+        if user_id in REAL_BALANCES:
+            REAL_BALANCES[user_id][pool.token_x] = REAL_BALANCES[user_id].get(pool.token_x, 0) + x_return
+            REAL_BALANCES[user_id][pool.token_y] = REAL_BALANCES[user_id].get(pool.token_y, 0) + y_return
+            REAL_BALANCES[user_id]['lp_tokens'] = REAL_BALANCES[user_id].get('lp_tokens', 0) - lp_tokens
 
         # 关闭仓位
         position_manager.close_position(
@@ -491,7 +538,7 @@ def api_statistics():
 @login_required
 def api_users():
     return jsonify({
-        'users': simulation.user_balances,
+        'users': REAL_BALANCES,
         'pool_tokens': {
             pool.token_x: float(pool.reserve_x),
             pool.token_y: float(pool.reserve_y),
@@ -503,6 +550,7 @@ def api_users():
 @login_required
 def api_reset():
     _full_reset()
+    _init_real_balances()
     return jsonify({'success': True, 'message': '系统已重置'})
 
 

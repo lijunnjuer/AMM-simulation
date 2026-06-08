@@ -188,8 +188,8 @@
                         <div class="swap-info-row"><span>最低获得</span><span id="swapMinOut">--</span></div>
                     </div>
                     <div class="swap-user-select">
-                        <label>执行用户</label>
-                        <select id="swapUser" class="token-select full-width"></select>
+                        <label>当前用户</label>
+                        <span id="swapCurrentUser" style="font-weight:600;color:var(--accent);">--</span>
                     </div>
                     <button class="btn-primary btn-swap" id="btnSwap">交换</button>
                     <div class="swap-error" id="swapError" style="display:none;"></div>
@@ -229,8 +229,8 @@
                             <div class="swap-info-row"><span>池中总 LP Token</span><span id="liqTotalLP">--</span></div>
                         </div>
                         <div class="swap-user-select">
-                            <label>执行用户</label>
-                            <select id="liqAddUser" class="token-select full-width"></select>
+                            <label>当前用户</label>
+                            <span id="liqCurrentUser" style="font-weight:600;color:var(--accent);">--</span>
                         </div>
                         <button class="btn-primary btn-full" id="btnAddLiquidity">添加流动性</button>
                         <div class="swap-error" id="liqAddError" style="display:none;"></div>
@@ -250,8 +250,8 @@
                             <div class="swap-info-row"><span>LP 持有份额</span><span id="liqShare">--</span></div>
                         </div>
                         <div class="swap-user-select">
-                            <label>执行用户</label>
-                            <select id="liqRemoveUser" class="token-select full-width"></select>
+                            <label>当前用户</label>
+                            <span id="liqCurrentUser2" style="font-weight:600;color:var(--accent);">--</span>
                         </div>
                         <button class="btn-danger btn-full" id="btnRemoveLiquidity">移除流动性</button>
                         <div class="swap-error" id="liqRemoveError" style="display:none;"></div>

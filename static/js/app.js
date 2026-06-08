@@ -71,6 +71,7 @@ async function apiPost(url, data = {}) {
 
 // 退出登录
 async function logout() {
+    if (!confirm('确定要退出登录吗？')) return;
     await apiPost('/api/logout');
     window.location.href = '/login';
 }
@@ -86,6 +87,19 @@ async function loadSession() {
         }
         const el = document.getElementById('loginUsername');
         if (el) el.textContent = data.username;
+
+        // 存储登录用户绑定的仿真身份
+        STATE.currentUser = {
+            sim_user_id: data.sim_user_id,
+            sim_user_name: data.sim_user_name,
+        };
+
+        // 更新 Swap 和流动性页面的用户显示
+        const userDisplays = ['swapCurrentUser', 'liqCurrentUser', 'liqCurrentUser2'];
+        userDisplays.forEach(id => {
+            const el2 = document.getElementById(id);
+            if (el2) el2.textContent = data.sim_user_name;
+        });
     } catch (e) {
         console.error('Session check failed:', e);
     }
@@ -351,17 +365,6 @@ async function refreshSwapPage() {
         STATE.pool = poolState;
         STATE.users = usersData.users || {};
 
-        // 填充用户选择
-        const userSelects = ['#swapUser', '#liqAddUser', '#liqRemoveUser'];
-        userSelects.forEach(sel => {
-            const el = $(sel);
-            if (el) {
-                el.innerHTML = Object.entries(STATE.users).map(([id, u]) =>
-                    `<option value="${id}">${u.name} (${u.type})</option>`
-                ).join('');
-            }
-        });
-
         updateSwapBalance();
         updateSwapQuote();
     } catch (e) {
@@ -372,9 +375,9 @@ async function refreshSwapPage() {
 function updateSwapBalance() {
     const inputToken = $('#swapInputToken').value;
     const outputToken = $('#swapOutputToken').value;
-    const user = $('#swapUser').value;
+    const user = STATE.currentUser?.sim_user_id;
 
-    if (STATE.users[user]) {
+    if (user && STATE.users[user]) {
         $('#swapInputBalance').textContent = `余额: ${fmt(STATE.users[user][inputToken] || 0, 6)} ${inputToken}`;
         $('#swapOutputBalance').textContent = `余额: ${fmt(STATE.users[user][outputToken] || 0, 6)} ${outputToken}`;
     }
@@ -414,15 +417,13 @@ async function updateSwapQuote() {
 async function executeSwap() {
     const amount = parseFloat($('#swapInputAmount').value);
     const tokenIn = $('#swapInputToken').value;
-    const user = $('#swapUser').value;
-
     if (!amount || amount <= 0) {
         showToast('请输入有效的交易数量', 'error');
         return;
     }
 
     try {
-        const resp = await apiPost('/api/swap/execute', { token_in: tokenIn, amount, user_id: user });
+        const resp = await apiPost('/api/swap/execute', { token_in: tokenIn, amount });
         if (resp.success) {
             const r = resp.result;
             showToast(`交易成功! 用 ${fmt(r.amount_in)} ${r.token_in} 兑换了 ${fmt(r.amount_out)} ${r.token_out}`, 'success');
@@ -456,7 +457,6 @@ function initSwapEvents() {
         updateSwapBalance();
         updateSwapQuote();
     });
-    $('#swapUser').addEventListener('change', updateSwapBalance);
     $('#swapArrow').addEventListener('click', () => {
         const tmp = $('#swapInputToken').value;
         $('#swapInputToken').value = $('#swapOutputToken').value;
@@ -520,7 +520,7 @@ function updateLiquidityEstimate() {
 async function addLiquidity() {
     const x = parseFloat($('#liqInputX').value);
     const y = parseFloat($('#liqInputY').value);
-    const user = $('#liqAddUser').value;
+    const user = STATE.currentUser?.sim_user_id || '';
 
     if (!x || !y || x <= 0 || y <= 0) {
         showToast('请输入有效的存入数量', 'error');
@@ -528,7 +528,7 @@ async function addLiquidity() {
     }
 
     try {
-        const resp = await apiPost('/api/liquidity/add', { x_amount: x, y_amount: y, user_id: user });
+        const resp = await apiPost('/api/liquidity/add', { x_amount: x, y_amount: y });
         if (resp.success) {
             showToast(`流动性添加成功! 获得 ${fmt(resp.lp_tokens, 6)} LP Token`, 'success');
             $('#liqInputX').value = '';
@@ -546,7 +546,7 @@ async function addLiquidity() {
 
 async function removeLiquidity() {
     const lpTokens = parseFloat($('#liqRemoveLP').value);
-    const user = $('#liqRemoveUser').value;
+    const user = STATE.currentUser?.sim_user_id || '';
 
     if (!lpTokens || lpTokens <= 0) {
         showToast('请输入有效的 LP Token 数量', 'error');
@@ -554,7 +554,7 @@ async function removeLiquidity() {
     }
 
     try {
-        const resp = await apiPost('/api/liquidity/remove', { lp_tokens: lpTokens, user_id: user });
+        const resp = await apiPost('/api/liquidity/remove', { lp_tokens: lpTokens });
         if (resp.success) {
             showToast(`移除成功! 返还 ${fmt(resp.returned_x, 6)} ${STATE.pool.token_x} 和 ${fmt(resp.returned_y, 2)} ${STATE.pool.token_y}`, 'success');
             $('#liqRemoveLP').value = '';

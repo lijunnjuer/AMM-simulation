@@ -46,6 +46,16 @@
             display: none; border: 1px solid #fecaca;
         }
         .error-msg.show { display: block; }
+        .captcha-row { display: flex; gap: 10px; align-items: center; }
+        .captcha-row input { flex: 1; }
+        .captcha-code {
+            display: inline-block; padding: 8px 16px; background: #f0f2f5;
+            border: 1px solid #d1d5db; border-radius: 6px;
+            font-size: 18px; font-weight: 700; letter-spacing: 4px;
+            color: #2563eb; cursor: pointer; user-select: none;
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+        }
+        .captcha-code:hover { background: #e0e7ff; }
         .login-footer { text-align: center; margin-top: 24px; font-size: 12px; color: #9ca3af; }
     </style>
 </head>
@@ -65,23 +75,52 @@
                 <label for="password">密码</label>
                 <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" required>
             </div>
+            <div class="form-group">
+                <label for="captcha">验证码</label>
+                <div class="captcha-row">
+                    <input type="text" id="captcha" placeholder="请输入验证码" maxlength="4" autocomplete="off" required>
+                    <span id="captchaCode" class="captcha-code" title="点击刷新验证码">----</span>
+                </div>
+            </div>
             <button type="submit" class="btn-login" id="btnLogin">登 录</button>
         </form>
-        <div class="login-footer">默认账号: admin / admin123 &nbsp;|&nbsp; demo / demo123</div>
+        <div class="login-footer">默认账号: Alice / alice123 &nbsp;|&nbsp; Bob / bob123</div>
     </div>
 
     <script>
         const form = document.getElementById('loginForm');
         const error = document.getElementById('loginError');
         const btn = document.getElementById('btnLogin');
+        const captchaEl = document.getElementById('captchaCode');
+        const captchaInput = document.getElementById('captcha');
+
+        async function refreshCaptcha() {
+            try {
+                const resp = await fetch('/api/captcha');
+                const data = await resp.json();
+                captchaEl.textContent = data.captcha;
+            } catch (err) {
+                captchaEl.textContent = '----';
+            }
+        }
+
+        // 页面加载时生成验证码，点击刷新
+        refreshCaptcha();
+        captchaEl.addEventListener('click', refreshCaptcha);
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
+            const captcha = captchaInput.value.trim();
 
             if (!username || !password) {
                 error.textContent = '请输入用户名和密码';
+                error.classList.add('show');
+                return;
+            }
+            if (!captcha) {
+                error.textContent = '请输入验证码';
                 error.classList.add('show');
                 return;
             }
@@ -94,7 +133,7 @@
                 const resp = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password }),
+                    body: JSON.stringify({ username, password, captcha }),
                 });
                 const data = await resp.json();
                 if (data.success) {
@@ -102,6 +141,7 @@
                 } else {
                     error.textContent = data.error || '登录失败';
                     error.classList.add('show');
+                    refreshCaptcha();
                 }
             } catch (err) {
                 error.textContent = '网络错误，请重试';
