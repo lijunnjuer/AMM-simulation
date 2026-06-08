@@ -129,6 +129,83 @@ def print_summary(results):
     print("-" * 80)
 
 
+def run_sensitivity_analysis(verbose=False):
+    """参数敏感性分析：固定场景 0，对比三种费率下手续费和价格变化"""
+    import copy
+    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+
+    def _load(name):
+        with open(os.path.join(data_dir, name), encoding='utf-8') as f:
+            return json.load(f)
+
+    fee_rates = [0.001, 0.003, 0.01]  # 0.1%、0.3%、1%
+    results = []
+
+    for fee in fee_rates:
+        from core.liquidity_pool import LiquidityPool
+        from core.swap_engine import SwapEngine
+        from core.fee_manager import FeeManager
+        from core.position_manager import PositionManager
+        from core.oracle_simulator import OracleSimulator
+        from core.data_logger import DataLogger
+        from core.simulation import SimulationController
+
+        pool_cfg = _load('pool_config.json')
+        pool_cfg['fee_rate'] = fee
+        users_data = _load('users.json')
+        scenarios_data = _load('scenarios.json')
+
+        pool = LiquidityPool(fee_rate=fee)
+        fee_mgr = FeeManager(fee_rate=fee)
+        logger = DataLogger()
+        swap_engine = SwapEngine(pool, fee_mgr, logger)
+        pos_mgr = PositionManager(logger)
+        oracle = OracleSimulator()
+
+        init = pool_cfg['initial_liquidity']
+        pool.initialize(init['reserve_x'], init['reserve_y'])
+
+        sim = SimulationController(pool, swap_engine, pos_mgr, oracle, logger)
+        sim.load_users(users_data)
+
+        scenario = scenarios_data['scenarios'][0]
+        sim.scenario = scenario
+        sim.current_step = 0
+        sim.results = []
+
+        duration = scenario.get('duration_steps', 50)
+        for _ in range(duration):
+            sim.step()
+
+        stats = logger.get_statistics()
+        final = pool.get_state()
+        init_price = init['reserve_y'] / init['reserve_x']
+
+        results.append({
+            'fee_pct': f'{fee*100:.1f}%',
+            'total_fees': stats['total_fees'],
+            'total_volume': stats['total_volume'],
+            'avg_price_impact': stats['avg_price_impact'],
+            'final_price': final['current_price'],
+            'price_change_pct': round((final['current_price'] - init_price) / init_price * 100, 2),
+        })
+
+    print(f"\n{'='*75}")
+    print("  参数敏感性分析 — 费率对交易结果的影响")
+    print(f"  场景: 基础交易 (50 步), 三种费率对比")
+    print(f"{'='*75}")
+    print(f"{'费率':<8} {'手续费收入':>10} {'成交量':>10} {'平均滑点':>10} "
+          f"{'最终价格':>10} {'价格变化':>8}")
+    print("-" * 75)
+    for r in results:
+        print(f"{r['fee_pct']:<8} {r['total_fees']:>10.4f} {r['total_volume']:>10.2f} "
+              f"{r['avg_price_impact']:>9.4f}% {r['final_price']:>10.2f} "
+              f"{r['price_change_pct']:>7.2f}%")
+    print("-" * 75)
+    print("  结论: 费率越高 → 手续费收入越多，但 LP 滑点成本也越高")
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='AMM 自动做市商仿真系统 — 一键演示',
@@ -139,6 +216,8 @@ def main():
                         help='场景索引 (0-3), 不指定则运行全部')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='显示每步详细交易记录')
+    parser.add_argument('--compare', action='store_true',
+                        help='运行费率敏感性分析 (0.1%% vs 0.3%% vs 1.0%%)')
     args = parser.parse_args()
 
     print()
@@ -146,6 +225,11 @@ def main():
     print("  AMM 自动做市商仿真系统  v1.0")
     print("  DeFi 核心逻辑仿真 — 恒定乘积 x·y=k")
     print("=" * 60)
+
+    # 参数敏感性分析模式
+    if args.compare:
+        run_sensitivity_analysis(args.verbose)
+        return
 
     # 加载配置
     scenario_list = []

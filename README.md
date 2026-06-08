@@ -83,6 +83,7 @@ python main.py                        # 全部场景
 python main.py --scenario 1           # 只看大额冲击
 python main.py --scenario 1 -v        # 逐笔交易明细
 python main.py --config demo.json     # 配置文件运行
+python main.py --compare              # 费率敏感性分析
 ```
 
 ## 使用真实行情
