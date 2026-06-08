@@ -36,6 +36,7 @@
             <div class="status-dot online" id="sysStatus" title="系统状态"></div>
             <div class="user-info">
                 <span id="loginUsername">--</span>
+                <span class="top-balances" id="topBalances" style="font-size:11px;color:var(--text-muted);margin:0 10px;"></span>
                 <button id="btnLogout" class="btn-logout" title="退出登录">退出</button>
             </div>
         </div>
@@ -124,7 +125,7 @@
                 </div>
             </div>
             <div class="chart-card">
-                <div class="chart-card-title">最近交易记录</div>
+                <div class="chart-card-title">最近交易记录 <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(显示最近5条记录)</span></div>
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
@@ -150,7 +151,7 @@
         <!-- ========== 代币交换页面 ========== -->
         <section class="page" id="page-swap">
             <h2 class="page-title">代币交换</h2>
-            <div class="swap-container">
+            <div class="swap-layout">
                 <div class="swap-card">
                     <div class="swap-header">
                         <span>Swap</span>
@@ -187,12 +188,12 @@
                         <div class="swap-info-row"><span>手续费</span><span id="swapFee">--</span></div>
                         <div class="swap-info-row"><span>最低获得</span><span id="swapMinOut">--</span></div>
                     </div>
-                    <div class="swap-user-select">
-                        <label>当前用户</label>
-                        <span id="swapCurrentUser" style="font-weight:600;color:var(--accent);">--</span>
-                    </div>
                     <button class="btn-primary btn-swap" id="btnSwap">交换</button>
                     <div class="swap-error" id="swapError" style="display:none;"></div>
+                </div>
+                <div class="chart-card swap-chart-card">
+                    <div class="chart-card-title">池子储备构成</div>
+                    <div class="chart-container" id="chartSwapReserves"></div>
                 </div>
             </div>
         </section>
@@ -228,10 +229,6 @@
                             <div class="swap-info-row"><span>预计获得 LP Token</span><span id="liqExpectedLP">--</span></div>
                             <div class="swap-info-row"><span>池中总 LP Token</span><span id="liqTotalLP">--</span></div>
                         </div>
-                        <div class="swap-user-select">
-                            <label>当前用户</label>
-                            <span id="liqCurrentUser" style="font-weight:600;color:var(--accent);">--</span>
-                        </div>
                         <button class="btn-primary btn-full" id="btnAddLiquidity">添加流动性</button>
                         <div class="swap-error" id="liqAddError" style="display:none;"></div>
                     </div>
@@ -249,15 +246,11 @@
                             <div class="swap-info-row"><span>预计返还 <span id="liqRemoveTokenY">USDC</span></span><span id="liqReturnY">--</span></div>
                             <div class="swap-info-row"><span>LP 持有份额</span><span id="liqShare">--</span></div>
                         </div>
-                        <div class="swap-user-select">
-                            <label>当前用户</label>
-                            <span id="liqCurrentUser2" style="font-weight:600;color:var(--accent);">--</span>
-                        </div>
                         <button class="btn-danger btn-full" id="btnRemoveLiquidity">移除流动性</button>
                         <div class="swap-error" id="liqRemoveError" style="display:none;"></div>
                     </div>
                 </div>
-                <div class="chart-card">
+                <div class="chart-card liquidity-chart-card">
                     <div class="chart-card-title">池子储备构成</div>
                     <div class="chart-container" id="chartReserves"></div>
                 </div>

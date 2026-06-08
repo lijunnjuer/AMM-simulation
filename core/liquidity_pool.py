@@ -146,7 +146,8 @@ class LiquidityPool:
     def add_liquidity(self, x_amount, y_amount):
         """
         添加流动性并铸造 LP Token
-        返回: 铸造的 LP Token 数量 (float)
+        Uniswap V2 风格：按 pool 比例自动修正金额，取 min(desired, optimal)
+        返回: {'lp_tokens': float, 'x_used': float, 'y_used': float}
         """
         x_amount = Decimal(str(x_amount))
         y_amount = Decimal(str(y_amount))
@@ -156,23 +157,32 @@ class LiquidityPool:
 
         if self.total_lp_tokens == 0:
             lp_tokens = (x_amount * y_amount).sqrt()
+            x_used, y_used = x_amount, y_amount
         else:
-            expected_y = x_amount * self.reserve_y / self.reserve_x
-            ratio_diff = abs(y_amount - expected_y) / expected_y
-            if ratio_diff > Decimal('0.001'):
-                raise InvalidLiquidityRatioError(
-                    f"流动性比例不匹配：按当前池比例需要 {expected_y:.2f} {self.token_y}，"
-                    f"提供了 {y_amount:.2f} {self.token_y}（偏差 {ratio_diff * 100:.2f}%）"
-                )
-            lp_tokens = x_amount * self.total_lp_tokens / self.reserve_x
+            # Uniswap V2: 按当前储备比例自动计算最优配对量
+            optimal_y = x_amount * self.reserve_y / self.reserve_x
+            optimal_x = y_amount * self.reserve_x / self.reserve_y
 
-        self.reserve_x += x_amount
-        self.reserve_y += y_amount
+            if y_amount > optimal_y:
+                # 用户多给了 Y → 按 X 为基准，裁切 Y
+                x_used, y_used = x_amount, optimal_y
+            else:
+                # 用户多给了 X（或刚好）→ 按 Y 为基准，裁切 X
+                x_used, y_used = optimal_x, y_amount
+
+            lp_tokens = x_used * self.total_lp_tokens / self.reserve_x
+
+        self.reserve_x += x_used
+        self.reserve_y += y_used
         self.k = self.reserve_x * self.reserve_y
         self.total_lp_tokens += lp_tokens
         self._record_price()
 
-        return float(lp_tokens)
+        return {
+            'lp_tokens': float(lp_tokens),
+            'x_used': float(x_used),
+            'y_used': float(y_used),
+        }
 
     def remove_liquidity(self, lp_tokens):
         """

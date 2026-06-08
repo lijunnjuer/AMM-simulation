@@ -9,6 +9,7 @@ const STATE = {
     currentPage: 'dashboard',
     pool: null,
     users: {},
+    userNames: {},
     updateInterval: null,
     charts: {},
 };
@@ -41,6 +42,10 @@ function showToast(msg, type = 'info') {
     toast.textContent = msg;
     container.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3500);
+}
+
+function userName(id) {
+    return STATE.userNames[id] || id;
 }
 
 function getTimestamp() {
@@ -93,13 +98,6 @@ async function loadSession() {
             sim_user_id: data.sim_user_id,
             sim_user_name: data.sim_user_name,
         };
-
-        // 更新 Swap 和流动性页面的用户显示
-        const userDisplays = ['swapCurrentUser', 'liqCurrentUser', 'liqCurrentUser2'];
-        userDisplays.forEach(id => {
-            const el2 = document.getElementById(id);
-            if (el2) el2.textContent = data.sim_user_name;
-        });
     } catch (e) {
         console.error('Session check failed:', e);
     }
@@ -200,23 +198,68 @@ function initCharts() {
     });
     STATE.charts.il = ilChart;
 
-    // 储备图表
+    // 储备图公共配置
+    function makeReservesChartOptions() {
+        return {
+            ...getChartTheme(),
+            tooltip: { trigger: 'axis' },
+            grid: { left: 55, right: 55, top: 10, bottom: 50 },
+            xAxis: {
+                type: 'category', data: [],
+                axisLine: { lineStyle: { color: '#e5e7eb' } }, axisTick: { show: false },
+            },
+            yAxis: [
+                {
+                    type: 'value', name: 'ETH', nameTextStyle: { fontSize: 10, color: '#2563eb' },
+                    axisLine: { show: false }, splitLine: { lineStyle: { color: '#eef0f2' } },
+                },
+                {
+                    type: 'value', name: 'USDC', nameTextStyle: { fontSize: 10, color: '#16a34a' },
+                    axisLine: { show: false }, splitLine: { show: false },
+                },
+            ],
+            dataZoom: [
+                {
+                    type: 'slider', xAxisIndex: 0,
+                    start: 0, end: 100,
+                    height: 20, bottom: 6,
+                    borderColor: '#e5e7eb',
+                    fillerColor: 'transparent',
+                    handleStyle: { color: '#2563eb' },
+                    textStyle: { fontSize: 9, color: '#8b95a1' },
+                    showDetail: false,
+                    showDataShadow: false,
+                    dataBackground: {
+                        lineStyle: { color: 'transparent', width: 0 },
+                        areaStyle: { color: 'transparent' },
+                    },
+                },
+                {
+                    type: 'inside', xAxisIndex: 0,
+                    zoomOnMouseWheel: false,   // 滚轮不缩放
+                    moveOnMouseWheel: true,     // 滚轮左右平移
+                    moveOnMouseMove: false,
+                },
+            ],
+            series: [
+                { name: 'ETH', type: 'bar', data: [], itemStyle: { color: '#2563eb', borderRadius: [4, 4, 0, 0] }, barGap: '30%' },
+                { name: 'USDC', type: 'bar', data: [], yAxisIndex: 1, itemStyle: { color: '#16a34a', borderRadius: [4, 4, 0, 0] } },
+            ],
+        };
+    }
+
+    // 流动性页面的储备图
     const reservesChart = echarts.init($('#chartReserves'));
-    reservesChart.setOption({
-        ...getChartTheme(),
-        tooltip: { trigger: 'axis' },
-        grid: { left: 50, right: 20, top: 10, bottom: 30 },
-        xAxis: { type: 'category', data: [], axisLine: { lineStyle: { color: '#e5e7eb' } }, axisTick: { show: false } },
-        yAxis: [
-            { type: 'value', name: 'ETH', axisLine: { show: false }, splitLine: { lineStyle: { color: '#eef0f2' } } },
-            { type: 'value', name: 'USDC', axisLine: { show: false }, splitLine: { show: false } },
-        ],
-        series: [
-            { name: 'ETH', type: 'bar', data: [], itemStyle: { color: '#2563eb', borderRadius: [4, 4, 0, 0] }, barGap: '30%' },
-            { name: 'USDC', type: 'bar', data: [], yAxisIndex: 1, itemStyle: { color: '#16a34a', borderRadius: [4, 4, 0, 0] } },
-        ],
-    });
+    reservesChart.setOption(makeReservesChartOptions());
     STATE.charts.reserves = reservesChart;
+
+    // Swap 页面的储备图
+    const swapReservesEl = $('#chartSwapReserves');
+    if (swapReservesEl) {
+        const swapReservesChart = echarts.init(swapReservesEl);
+        swapReservesChart.setOption(makeReservesChartOptions());
+        STATE.charts.swapReserves = swapReservesChart;
+    }
 
     // 仿真价格图表
     const simPriceChart = echarts.init($('#chartSimPrice'));
@@ -306,18 +349,40 @@ async function refreshDashboard() {
             series: [{ data: depthData }],
         });
 
-        // 更新储备图表
+        // 更新储备图表（默认显示最近10条，同时更新两个页面）
         const reserveSteps = history.map((_, i) => i);
-        STATE.charts.reserves.setOption({
-            xAxis: { data: reserveSteps },
-            series: [
-                { data: history.map(h => h.reserve_x) },
-                { data: history.map(h => h.reserve_y) },
-            ],
+        const total = history.length;
+        const VISIBLE = 10;
+        const zoomEnd = 100;
+        const zoomStart = total > VISIBLE ? ((total - VISIBLE) / total * 100) : 0;
+        const lastIdx = history.length - 1;
+        const reservesData = history.map((h, i) => ({
+            value: h.reserve_x,
+            itemStyle: i === lastIdx ? { borderColor: '#1d4ed8', borderWidth: 2 } : undefined,
+        }));
+        const reservesDataY = history.map((h, i) => ({
+            value: h.reserve_y,
+            itemStyle: i === lastIdx ? { borderColor: '#15803d', borderWidth: 2 } : undefined,
+        }));
+        [STATE.charts.reserves, STATE.charts.swapReserves].forEach(chart => {
+            if (!chart || chart.isDisposed()) return;
+            chart.setOption({
+                xAxis: { data: reserveSteps },
+                series: [
+                    { data: reservesData },
+                    { data: reservesDataY },
+                ],
+                dataZoom: [
+                    { start: zoomStart, end: zoomEnd },
+                    { start: zoomStart, end: zoomEnd },
+                ],
+            });
         });
 
-        // 更新最近交易
-        renderTransactionTable('recentTxTable', txData.transactions || []);
+        // 更新最近交易（合并 Swap + 流动性事件，显示最近 5 条）
+        const allTx = [...(txData.transactions || []), ...(txData.liquidity_events || [])];
+        allTx.sort((a, b) => (b.tx_id || b.event_id || '').localeCompare(a.tx_id || a.event_id || ''));
+        renderTransactionTable('recentTxTable', allTx.slice(0, 5));
 
         // 更新价格变化
         if (history.length > 1) {
@@ -337,18 +402,35 @@ function renderTransactionTable(tbodyId, transactions) {
         tbody.innerHTML = '<tr><td colspan="8" class="empty-msg">暂无交易记录</td></tr>';
         return;
     }
-    tbody.innerHTML = transactions.slice().reverse().map(tx => `
-        <tr>
-            <td><code style="font-size:11px;color:var(--text-muted)">${tx.tx_id}</code></td>
-            <td>${tx.user_id}</td>
-            <td><span class="tx-type swap">SWAP</span></td>
-            <td>${fmt(tx.amount_in)} ${tx.token_in}</td>
-            <td>${fmt(tx.amount_out)} ${tx.token_out}</td>
-            <td>${fmt(tx.fee, 6)}</td>
-            <td>${(tx.price_impact * 100).toFixed(3)}%</td>
-            <td style="font-size:11px;">${tx.timestamp}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = transactions.slice().reverse().map(tx => {
+        const isSwap = tx.type === 'SWAP';
+        const isAdd = tx.type === 'LIQUIDITY_ADD';
+        const isRemove = tx.type === 'LIQUIDITY_REMOVE';
+        const typeClass = isSwap ? 'swap' : (isAdd ? 'add' : 'remove');
+        const typeLabel = isSwap ? 'SWAP' : (isAdd ? 'ADD LP' : 'REMOVE LP');
+        const fullId = tx.tx_id || tx.event_id || '--';
+        const shortId = fullId.length > 20 ? '…' + fullId.slice(-15) : fullId;
+        const col1 = isSwap
+            ? `${fmt(tx.amount_in, 4)} ${tx.token_in}`
+            : `${fmt(tx.token_x_amount || 0, 4)} + ${fmt(tx.token_y_amount || 0, 2)}`;
+        const col2 = isSwap
+            ? `${fmt(tx.amount_out, 4)} ${tx.token_out}`
+            : `${fmt(tx.lp_tokens || 0, 4)} LP`;
+        const col3 = isSwap ? fmt(tx.fee, 4) : '--';
+        const col4 = isSwap ? (tx.price_impact * 100).toFixed(2) + '%' : '--';
+        return `
+            <tr>
+                <td><code style=\"font-size:10px;color:var(--text-muted)\" title=\"${fullId}\">${shortId}</code></td>
+                <td>${userName(tx.user_id)}</td>
+                <td><span class="tx-type ${typeClass}">${typeLabel}</span></td>
+                <td>${col1}</td>
+                <td>${col2}</td>
+                <td>${col3}</td>
+                <td>${col4}</td>
+                <td style="font-size:11px;">${tx.timestamp}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // ============================================================
@@ -366,7 +448,30 @@ async function refreshSwapPage() {
         STATE.users = usersData.users || {};
 
         updateSwapBalance();
+        updateUserBalances();
         updateSwapQuote();
+
+        // 更新 Swap 页面的储备构成图
+        if (STATE.charts.swapReserves && !STATE.charts.swapReserves.isDisposed()) {
+            const history = poolState.price_history || [];
+            const steps = history.map((_, i) => i);
+            const total = history.length;
+            const VISIBLE = 10;
+            const zoomEnd = 100;
+            const zoomStart = total > VISIBLE ? ((total - VISIBLE) / total * 100) : 0;
+            const lastIdx = history.length - 1;
+            STATE.charts.swapReserves.setOption({
+                xAxis: { data: steps },
+                series: [
+                    { data: history.map((h, i) => ({ value: h.reserve_x, itemStyle: i === lastIdx ? { borderColor: '#1d4ed8', borderWidth: 2 } : undefined })) },
+                    { data: history.map((h, i) => ({ value: h.reserve_y, itemStyle: i === lastIdx ? { borderColor: '#15803d', borderWidth: 2 } : undefined })) },
+                ],
+                dataZoom: [
+                    { start: zoomStart, end: zoomEnd },
+                    { start: zoomStart, end: zoomEnd },
+                ],
+            });
+        }
     } catch (e) {
         console.error('Swap refresh error:', e);
     }
@@ -380,6 +485,22 @@ function updateSwapBalance() {
     if (user && STATE.users[user]) {
         $('#swapInputBalance').textContent = `余额: ${fmt(STATE.users[user][inputToken] || 0, 6)} ${inputToken}`;
         $('#swapOutputBalance').textContent = `余额: ${fmt(STATE.users[user][outputToken] || 0, 6)} ${outputToken}`;
+    }
+}
+
+function updateUserBalances() {
+    const user = STATE.currentUser?.sim_user_id;
+    const balances = user && STATE.users[user] ? STATE.users[user] : null;
+    const eth = balances ? fmt(balances.ETH || 0, 6) : '--';
+    const usdc = balances ? fmt(balances.USDC || 0, 2) : '--';
+    const lp = balances ? fmt(balances.lp_tokens || 0, 6) : '--';
+
+    // 顶栏（右上角 Alice 和退出之间）
+    const topEl = document.getElementById('topBalances');
+    if (topEl) {
+        topEl.innerHTML = `<span>ETH <strong style="color:#2563eb">${eth}</strong></span>`
+            + `  |  <span>USDC <strong style="color:#16a34a">${usdc}</strong></span>`
+            + `  |  <span>LP <strong style="color:#d97706">${lp}</strong></span>`;
     }
 }
 
@@ -472,8 +593,14 @@ function initSwapEvents() {
 // ============================================================
 async function refreshLiquidityPage() {
     try {
-        const poolState = await apiGet('/api/pool/state');
+        const [poolState, usersData] = await Promise.all([
+            apiGet('/api/pool/state'),
+            apiGet('/api/users'),
+        ]);
         STATE.pool = poolState;
+        STATE.users = usersData.users || {};
+
+        updateUserBalances();
 
         $('#liqTokenXLabel').textContent = poolState.token_x;
         $('#liqTokenXTag').textContent = poolState.token_x;
@@ -492,13 +619,34 @@ async function refreshLiquidityPage() {
     }
 }
 
+// 追踪流动性输入框焦点（用于自动计算配对数量）
+let lastLiqFocus = 'x';
+
 function updateLiquidityEstimate() {
+    const pool = STATE.pool;
     const x = parseFloat($('#liqInputX').value) || 0;
     const y = parseFloat($('#liqInputY').value) || 0;
 
-    if (STATE.pool && x > 0) {
-        const lpTokens = x / STATE.pool.reserve_x * STATE.pool.total_lp_tokens;
-        $('#liqExpectedLP').textContent = fmt(lpTokens, 6);
+    // Uniswap 风格：输入一种币，自动计算另一种
+    if (pool && pool.reserve_x > 0) {
+        const ratio = pool.reserve_y / pool.reserve_x; // USDC per ETH
+
+        if (lastLiqFocus === 'x' && x > 0) {
+            const autoY = x * ratio;
+            $('#liqInputY').value = parseFloat(autoY.toFixed(2));
+        } else if (lastLiqFocus === 'y' && y > 0) {
+            const autoX = y / ratio;
+            $('#liqInputX').value = parseFloat(autoX.toFixed(6));
+        }
+
+        // LP Token 预估（基于实际会被使用的 ETH 数量）
+        const effectiveX = parseFloat($('#liqInputX').value) || 0;
+        if (effectiveX > 0) {
+            const lpTokens = effectiveX / pool.reserve_x * pool.total_lp_tokens;
+            $('#liqExpectedLP').textContent = fmt(lpTokens, 6);
+        } else {
+            $('#liqExpectedLP').textContent = '--';
+        }
     } else {
         $('#liqExpectedLP').textContent = '--';
     }
@@ -530,7 +678,9 @@ async function addLiquidity() {
     try {
         const resp = await apiPost('/api/liquidity/add', { x_amount: x, y_amount: y });
         if (resp.success) {
-            showToast(`流动性添加成功! 获得 ${fmt(resp.lp_tokens, 6)} LP Token`, 'success');
+            const actualX = resp.x_used || x;
+            const actualY = resp.y_used || y;
+            showToast(`流动性添加成功! 实际使用 ${fmt(actualX, 6)} ${STATE.pool?.token_x || 'ETH'} + ${fmt(actualY, 2)} ${STATE.pool?.token_y || 'USDC'}，获得 ${fmt(resp.lp_tokens, 6)} LP Token`, 'success');
             $('#liqInputX').value = '';
             $('#liqInputY').value = '';
             refreshLiquidityPage();
@@ -582,6 +732,8 @@ function initLiquidityEvents() {
 
     $('#liqInputX').addEventListener('input', updateLiquidityEstimate);
     $('#liqInputY').addEventListener('input', updateLiquidityEstimate);
+    $('#liqInputX').addEventListener('focus', () => { lastLiqFocus = 'x'; });
+    $('#liqInputY').addEventListener('focus', () => { lastLiqFocus = 'y'; });
     $('#liqRemoveLP').addEventListener('input', updateLiquidityEstimate);
     $('#btnAddLiquidity').addEventListener('click', addLiquidity);
     $('#btnRemoveLiquidity').addEventListener('click', removeLiquidity);
@@ -769,11 +921,11 @@ function appendSimLog(stepResult) {
             if (evt.error) {
                 html += `<span class="error">⚠ ${evt.error}</span> `;
             } else if (evt.type === 'swap') {
-                html += `<span class="event-type">SWAP</span> ${evt.user_id}: ${fmt(evt.amount_in)} ${evt.token_in}→${fmt(evt.amount_out)} ${evt.token_out} `;
+                html += `<span class="event-type">SWAP</span> ${userName(evt.user_id)}: ${fmt(evt.amount_in)} ${evt.token_in}→${fmt(evt.amount_out)} ${evt.token_out} `;
             } else if (evt.type === 'add_liquidity') {
-                html += `<span class="event-type">ADD LP</span> ${evt.user_id}: +${fmt(evt.lp_tokens)} LP `;
+                html += `<span class="event-type">ADD LP</span> ${userName(evt.user_id)}: +${fmt(evt.lp_tokens)} LP `;
             } else if (evt.type === 'remove_liquidity') {
-                html += `<span class="event-type">REMOVE LP</span> ${evt.user_id}: -${fmt(evt.lp_tokens)} LP `;
+                html += `<span class="event-type">REMOVE LP</span> ${userName(evt.user_id)}: -${fmt(evt.lp_tokens)} LP `;
             }
         });
     }
@@ -862,16 +1014,29 @@ async function refreshDataPage() {
         const tbody = $('#fullTxTable');
         tbody.innerHTML = allTxs.map(tx => {
             const isSwap = tx.type === 'SWAP';
-            const typeClass = isSwap ? 'swap' : (tx.type.includes('ADD') ? 'add' : 'remove');
+            const isAdd = tx.type === 'LIQUIDITY_ADD';
+            const isRemove = tx.type === 'LIQUIDITY_REMOVE';
+            const typeClass = isSwap ? 'swap' : (isAdd ? 'add' : 'remove');
+            const typeLabel = isSwap ? 'SWAP' : (isAdd ? 'ADD LP' : 'REMOVE LP');
+            const fullId = tx.tx_id || tx.event_id || '--';
+            const shortId = fullId.length > 20 ? '…' + fullId.slice(-15) : fullId;
+            const col1 = isSwap
+                ? `${fmt(tx.amount_in, 4)} ${tx.token_in}`
+                : `${fmt(tx.token_x_amount || 0, 4)} + ${fmt(tx.token_y_amount || 0, 2)}`;
+            const col2 = isSwap
+                ? `${fmt(tx.amount_out, 4)} ${tx.token_out}`
+                : `${fmt(tx.lp_tokens || 0, 4)} LP`;
+            const col3 = isSwap ? fmt(tx.fee, 4) : '--';
+            const col4 = isSwap ? (tx.price_impact * 100).toFixed(2) + '%' : '--';
             return `
                 <tr>
-                    <td><code style="font-size:11px;color:var(--text-muted)">${tx.tx_id || tx.event_id}</code></td>
-                    <td><span class="tx-type ${typeClass}">${tx.type}</span></td>
-                    <td>${tx.user_id}</td>
-                    <td>${fmt(tx.amount_in || tx.token_x_amount, 4)} ${tx.token_in || ''}</td>
-                    <td>${fmt(tx.amount_out || tx.token_y_amount, 4)} ${tx.token_out || ''}</td>
-                    <td>${fmt(tx.fee || 0, 6)}</td>
-                    <td>${tx.price_impact ? (tx.price_impact * 100).toFixed(3) + '%' : '--'}</td>
+                    <td><code style=\"font-size:10px;color:var(--text-muted)\" title=\"${fullId}\">${shortId}</code></td>
+                    <td><span class="tx-type ${typeClass}">${typeLabel}</span></td>
+                    <td>${userName(tx.user_id)}</td>
+                    <td>${col1}</td>
+                    <td>${col2}</td>
+                    <td>${col3}</td>
+                    <td>${col4}</td>
                     <td style="font-size:11px;">${tx.timestamp}</td>
                 </tr>
             `;
@@ -887,6 +1052,19 @@ async function refreshDataPage() {
 async function init() {
     // 检查登录状态
     await loadSession();
+
+    // 加载用户名称映射和余额数据
+    try {
+        const usersData = await apiGet('/api/users');
+        STATE.users = usersData.users || {};
+        STATE.userNames = {};
+        for (const [id, user] of Object.entries(STATE.users)) {
+            STATE.userNames[id] = user.name || id;
+        }
+        updateUserBalances();
+    } catch (e) {
+        console.error('Load user names error:', e);
+    }
 
     initNavigation();
     initCharts();
@@ -906,6 +1084,9 @@ async function init() {
             try {
                 await apiPost('/api/reset');
                 showToast('系统已重置', 'info');
+                // 清空所有图表缓存
+                Object.values(STATE.charts).forEach(c => { try { c.clear(); } catch (e) { /* ignore */ } });
+                initCharts();
                 refreshDashboard();
             } catch (e) {
                 showToast('重置失败', 'error');

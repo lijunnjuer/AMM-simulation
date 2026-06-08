@@ -144,11 +144,14 @@ class SimulationController:
             if user_balance.get(self.pool.token_y, 0) < y_amount:
                 return {'error': f'用户 {user_id} 余额不足', 'event': event}
 
-            lp_tokens = self.pool.add_liquidity(x_amount, y_amount)
+            result = self.pool.add_liquidity(x_amount, y_amount)
+            lp_tokens = result['lp_tokens']
+            x_used = result['x_used']
+            y_used = result['y_used']
 
-            # 更新余额
-            user_balance[self.pool.token_x] -= x_amount
-            user_balance[self.pool.token_y] -= y_amount
+            # 更新余额（使用实际消耗量）
+            user_balance[self.pool.token_x] -= x_used
+            user_balance[self.pool.token_y] -= y_used
             user_balance['lp_tokens'] = user_balance.get('lp_tokens', 0) + lp_tokens
 
             # 记录 LP 仓位
@@ -156,8 +159,8 @@ class SimulationController:
                 user_id=user_id,
                 pool_id='default',
                 lp_tokens=lp_tokens,
-                deposit_x=x_amount,
-                deposit_y=y_amount,
+                deposit_x=x_used,
+                deposit_y=y_used,
                 initial_price=float(self.pool.get_price()),
             )
 
@@ -166,8 +169,8 @@ class SimulationController:
                 'success': True,
                 'user_id': user_id,
                 'lp_tokens': lp_tokens,
-                'x_amount': x_amount,
-                'y_amount': y_amount,
+                'x_amount': x_used,
+                'y_amount': y_used,
             }
 
         elif action == 'remove_liquidity':

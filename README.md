@@ -38,12 +38,12 @@ AMM-simulation/
 ├── demo.json
 ├── requirements.txt
 ├── core/
-│   ├── liquidity_pool.py      # x·y=k 池子
+│   ├── liquidity_pool.py      # x·y=k 池子（Uniswap V2 风格自动修正比例）
 │   ├── swap_engine.py         # 交易引擎
 │   ├── fee_manager.py         # 手续费
 │   ├── position_manager.py    # LP 仓位 & 无常损失
 │   ├── oracle_simulator.py    # 价格预言机
-│   ├── data_logger.py         # 事件日志
+│   ├── data_logger.py         # 事件日志（Swap + 流动性事件）
 │   └── simulation.py          # 仿真控制器
 ├── tests/
 │   └── test_core.py           # 35 个单元测试

@@ -287,23 +287,27 @@ def api_liquidity_add():
                 return jsonify({'success': False,
                                 'error': f'{pool.token_y} 余额不足'})
 
-        lp_tokens = pool.add_liquidity(x_amount, y_amount)
+        result = pool.add_liquidity(x_amount, y_amount)
+        lp_tokens = result['lp_tokens']
+        x_used = result['x_used']
+        y_used = result['y_used']
 
         # 记录仓位
         position_manager.open_position(
             user_id=user_id, pool_id='default',
-            lp_tokens=lp_tokens, deposit_x=x_amount, deposit_y=y_amount,
+            lp_tokens=lp_tokens, deposit_x=x_used, deposit_y=y_used,
             initial_price=float(pool.get_price()),
         )
 
-        # 更新真实余额
+        # 更新真实余额（使用实际消耗量）
         if user_id in REAL_BALANCES:
-            REAL_BALANCES[user_id][pool.token_x] -= x_amount
-            REAL_BALANCES[user_id][pool.token_y] -= y_amount
+            REAL_BALANCES[user_id][pool.token_x] -= x_used
+            REAL_BALANCES[user_id][pool.token_y] -= y_used
             REAL_BALANCES[user_id]['lp_tokens'] = REAL_BALANCES[user_id].get('lp_tokens', 0) + lp_tokens
 
         return jsonify({
             'success': True, 'lp_tokens': lp_tokens,
+            'x_used': x_used, 'y_used': y_used,
             'new_total_lp': float(pool.total_lp_tokens),
         })
     except InvalidLiquidityRatioError as e:
