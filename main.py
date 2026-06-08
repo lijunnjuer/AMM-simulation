@@ -19,8 +19,30 @@ import sys
 import os
 import json
 import argparse
+import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def _dw(s):
+    """字符串在终端中的显示宽度（CJK 字符占 2 列）"""
+    w = 0
+    for ch in str(s):
+        if unicodedata.east_asian_width(ch) in ('F', 'W', 'A'):
+            w += 2
+        else:
+            w += 1
+    return w
+
+
+def _ljust(s, width):
+    """左对齐到指定显示宽度"""
+    return s + ' ' * max(0, width - _dw(s))
+
+
+def _rjust(s, width):
+    """右对齐到指定显示宽度"""
+    return ' ' * max(0, width - _dw(s)) + s
 
 
 def run_scenario(idx, verbose=False):
@@ -113,20 +135,34 @@ def run_scenario(idx, verbose=False):
 
 def print_summary(results):
     """打印汇总对比表"""
-    print(f"\n{'='*80}")
+    # 列显示宽度
+    CW = [16, 4, 6, 10, 10, 10, 10, 8]  # 场景 步数 交易数 成交量 手续费 初始价 最终价 价格变化
+    SEP = ' '.join('-' * w for w in CW)
+    TOTAL = sum(CW) + len(CW) - 1
+
+    print(f"\n{'='*TOTAL}")
     print("  全部场景汇总")
-    print(f"{'='*80}")
-    print(f"{'场景':<18} {'步数':>5} {'交易数':>6} {'成交量':>10} {'手续费':>8} "
-          f"{'初始价':>10} {'最终价':>10} {'价格变化':>8}")
-    print("-" * 80)
+    print(f"{'='*TOTAL}")
+    print(' '.join([
+        _ljust('场景', CW[0]), _rjust('步数', CW[1]), _rjust('交易数', CW[2]),
+        _rjust('成交量', CW[3]), _rjust('手续费', CW[4]),
+        _rjust('初始价', CW[5]), _rjust('最终价', CW[6]), _rjust('价格变化', CW[7]),
+    ]))
+    print(SEP)
     for r in results:
         if r is None:
             continue
-        print(f"{r['scenario']:<18} {r['steps']:>5} {r['total_swaps']:>6} "
-              f"{r['total_volume']:>10.2f} {r['total_fees']:>8.4f} "
-              f"{r['initial_price']:>10.2f} {r['final_price']:>10.2f} "
-              f"{r['price_change_pct']:>7.2f}%")
-    print("-" * 80)
+        print(' '.join([
+            _ljust(r['scenario'], CW[0]),
+            _rjust(str(r['steps']), CW[1]),
+            _rjust(str(r['total_swaps']), CW[2]),
+            _rjust(f"{r['total_volume']:.2f}", CW[3]),
+            _rjust(f"{r['total_fees']:.4f}", CW[4]),
+            _rjust(f"{r['initial_price']:.2f}", CW[5]),
+            _rjust(f"{r['final_price']:.2f}", CW[6]),
+            _rjust(f"{r['price_change_pct']:.2f}%", CW[7]),
+        ]))
+    print(SEP)
 
 
 def run_sensitivity_analysis(verbose=False):
@@ -190,18 +226,34 @@ def run_sensitivity_analysis(verbose=False):
             'price_change_pct': round((final['current_price'] - init_price) / init_price * 100, 2),
         })
 
-    print(f"\n{'='*75}")
+    # 列显示宽度
+    CW = [6, 12, 12, 10, 12, 10]  # 费率 手续费收入 成交量 平均滑点 最终价格 价格变化
+    SEP = ' '.join('-' * w for w in CW)
+    TOTAL = sum(CW) + len(CW) - 1
+
+    print(f"\n{'='*TOTAL}")
     print("  参数敏感性分析 — 费率对交易结果的影响")
     print(f"  场景: 基础交易 (50 步), 三种费率对比")
-    print(f"{'='*75}")
-    print(f"{'费率':<8} {'手续费收入':>10} {'成交量':>10} {'平均滑点':>10} "
-          f"{'最终价格':>10} {'价格变化':>8}")
-    print("-" * 75)
+    print(f"{'='*TOTAL}")
+    print(' '.join([
+        _ljust('费率', CW[0]),
+        _rjust('手续费收入', CW[1]),
+        _rjust('成交量', CW[2]),
+        _rjust('平均滑点', CW[3]),
+        _rjust('最终价格', CW[4]),
+        _rjust('价格变化', CW[5]),
+    ]))
+    print(SEP)
     for r in results:
-        print(f"{r['fee_pct']:<8} {r['total_fees']:>10.4f} {r['total_volume']:>10.2f} "
-              f"{r['avg_price_impact']:>9.4f}% {r['final_price']:>10.2f} "
-              f"{r['price_change_pct']:>7.2f}%")
-    print("-" * 75)
+        print(' '.join([
+            _ljust(r['fee_pct'], CW[0]),
+            _rjust(f"{r['total_fees']:.4f}", CW[1]),
+            _rjust(f"{r['total_volume']:.2f}", CW[2]),
+            _rjust(f"{r['avg_price_impact']:.4f}%", CW[3]),
+            _rjust(f"{r['final_price']:.2f}", CW[4]),
+            _rjust(f"{r['price_change_pct']:.2f}%", CW[5]),
+        ]))
+    print(SEP)
     print("  结论: 费率越高 → 手续费收入越多，但 LP 滑点成本也越高")
     print()
 

@@ -16,7 +16,7 @@ pip install -r requirements.txt
 python run.py
 
 # 命令行演示
-python main.py --config demo.json
+python main.py
 ```
 
 浏览器打开 `http://127.0.0.1:5000`，默认账号 `Alice` / `alice123`、`Bob` / `bob123`。
